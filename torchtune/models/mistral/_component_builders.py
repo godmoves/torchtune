@@ -45,6 +45,7 @@ def mistral(
     attn_dropout: float = 0.0,
     norm_eps: float = 1e-5,
     rope_base: int = 10_000,
+    head_dim: int = None,
 ) -> TransformerDecoder:
     """
     Build the decoder associated with the mistral model. This includes:
@@ -71,11 +72,12 @@ def mistral(
             Default: 0.0
         norm_eps (float): epsilon in RMS norms
         rope_base (int): base for the rotary positional embeddings. Default: 10_000
+        head_dim (int): head dimension for multi-head attention. Default: None
 
     Returns:
         TransformerDecoder: Instantiation of mistral model.
     """
-    head_dim = embed_dim // num_heads
+    head_dim = embed_dim // num_heads if not head_dim else head_dim
     num_kv_heads = num_kv_heads if num_kv_heads else num_heads
 
     rope = RotaryPositionalEmbeddings(
@@ -89,7 +91,7 @@ def mistral(
         q_proj=nn.Linear(embed_dim, num_heads * head_dim, bias=False),
         k_proj=nn.Linear(embed_dim, num_kv_heads * head_dim, bias=False),
         v_proj=nn.Linear(embed_dim, num_kv_heads * head_dim, bias=False),
-        output_proj=nn.Linear(embed_dim, embed_dim, bias=False),
+        output_proj=nn.Linear(num_heads * head_dim, embed_dim, bias=False),
         pos_embeddings=rope,
         kv_cache=None,
         max_seq_len=max_seq_len,
@@ -160,6 +162,7 @@ def lora_mistral(
     lora_dropout: float = 0.0,
     use_dora: bool = False,
     quantize_base: bool = False,
+    head_dim: int = None,
 ) -> TransformerDecoder:
     """
     Return a version of Mistral (an instance of :func:`~torchtune.modules.TransformerDecoder`)
@@ -201,11 +204,13 @@ def lora_mistral(
         a subset of the attention projections in each layer.
 
     """
+    head_dim = embed_dim // num_heads if not head_dim else head_dim
 
     self_attn = lora_mistral_self_attention(
         lora_modules=lora_attn_modules,
         embed_dim=embed_dim,
         num_heads=num_heads,
+        head_dim=head_dim,
         num_kv_heads=num_kv_heads,
         max_seq_len=max_seq_len,
         attn_dropout=attn_dropout,
@@ -254,7 +259,7 @@ def lora_mistral(
         num_layers=num_layers,
         max_seq_len=max_seq_len,
         num_heads=num_heads,
-        head_dim=(embed_dim // num_heads),
+        head_dim=head_dim,
         norm=RMSNorm(embed_dim, eps=norm_eps),
         output=output_proj,
     )
@@ -276,6 +281,7 @@ def lora_mistral_self_attention(
     embed_dim: int,
     num_heads: int,
     num_kv_heads: int,
+    head_dim: int,
     max_seq_len: int,
     attn_dropout: float = 0.0,
     rope_base: int = 10_000,
@@ -300,6 +306,7 @@ def lora_mistral_self_attention(
         num_kv_heads (int): number of key and value heads. User should ensure
             `num_heads` % `num_kv_heads` == 0. For standard MHA set `num_kv_heads` == `num_heads`,
             for GQA `num_kv_heads` < `num_heads`, and for MQA set `num_kv_heads` == 1.
+        head_dim (int): head dimension for multi-head attention
         max_seq_len (int): maximum sequence length the model will be run with
         attn_dropout (float): dropout value passed onto scaled_dot_product_attention.
             Default: 0.0
@@ -324,7 +331,6 @@ def lora_mistral_self_attention(
             f"Must pass one or more of {LORA_ATTN_MODULES} as lora_modules"
         )
 
-    head_dim = embed_dim // num_heads
     num_kv_heads = num_kv_heads if num_kv_heads else num_heads
     adapter_cls = DoRALinear if use_dora else LoRALinear
 
@@ -378,7 +384,7 @@ def lora_mistral_self_attention(
     )
     output_proj = (
         adapter_cls(
-            embed_dim,
+            num_heads * head_dim,
             embed_dim,
             rank=lora_rank,
             alpha=lora_alpha,
@@ -387,9 +393,9 @@ def lora_mistral_self_attention(
         )
         if "output_proj" in lora_modules
         else (
-            nn.Linear(embed_dim, embed_dim, bias=False)
+            nn.Linear(num_heads * head_dim, embed_dim, bias=False)
             if not quantize_base
-            else FrozenNF4Linear(embed_dim, embed_dim, bias=False)
+            else FrozenNF4Linear(num_heads * head_dim, embed_dim, bias=False)
         )
     )
     rope = RotaryPositionalEmbeddings(

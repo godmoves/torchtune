@@ -6,7 +6,7 @@
 
 from typing import Any, Callable, Dict, Optional, Union
 
-from torchtune.data._messages import OpenAIToMessages, ShareGPTToMessages
+from torchtune.data._messages import OpenAIToMessages, ShareGPTToMessages, HaiGPTToMessages
 from torchtune.datasets._packed import PackedDataset
 from torchtune.datasets._sft import SFTDataset
 from torchtune.modules.tokenizers import ModelTokenizer
@@ -167,6 +167,12 @@ def chat_dataset(
             column_map={"messages": conversation_column},
             new_system_prompt=new_system_prompt,
         )
+    elif conversation_style == "haigpt":
+        message_transform = HaiGPTToMessages(
+            train_on_input=train_on_input,
+            column_map={"dialogue": conversation_column},
+            new_system_prompt=new_system_prompt,
+        )
     else:
         raise ValueError(f"Unsupported conversation style: {conversation_style}")
 
@@ -185,3 +191,37 @@ def chat_dataset(
             )
         return PackedDataset(ds, max_seq_len=tokenizer.max_seq_len)
     return ds
+
+    
+if __name__ == "__main__":
+    from torchtune.models.mistral import mistral_hf_tokenizer
+
+    mistral_path = "/cephfs/SHARE/project/huggingface.co/hub/models--mistralai--Mistral-Nemo-Base-2407/snapshots/d613c787305d2300f41ad94abaec338411fbbecf"
+    tokenizer = mistral_hf_tokenizer(mistral_path)
+
+    dataset = chat_dataset(
+        tokenizer=tokenizer,
+        source="json",
+        conversation_column="dialogue",
+        conversation_style="haigpt",
+        train_on_input=False,
+        packed=False,
+        split="train",
+        data_files="/cephfs/GPT/usr/pangwenjie/her/haigpt/idea/data/ugc_model_dataset_0619.jsonl",
+    )
+
+    print(f"Total number of samples: {len(dataset)}")
+
+    for k, v in dataset[0].items():
+        print(f"{k} {len(v)}: {v}")
+
+    print(tokenizer.decode(dataset[0]["tokens"]))
+
+
+    # Calculate the avg number of tokens in the dataset "tokens" field
+    total_tokens = []
+    for i in range(5000):
+        total_tokens.append(len(dataset[i]["tokens"]))
+    avg_tokens = sum(total_tokens) / len(total_tokens)
+    print(f"Average number of tokens in the dataset: {avg_tokens}")
+    print(f"Top 10 max tokens in the dataset: {sorted(total_tokens, reverse=True)[:10]}")

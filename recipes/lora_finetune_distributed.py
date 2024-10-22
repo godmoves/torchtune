@@ -173,6 +173,8 @@ class LoRAFinetuneRecipeDistributed(FTRecipeInterface):
         self._save_adapter_weights_only = cfg.get("save_adapter_weights_only", False)
         self._resume_from_checkpoint = cfg.resume_from_checkpoint
         self._gradient_accumulation_steps = cfg.gradient_accumulation_steps
+        self._save_every_n_steps = cfg.get("save_every_n_steps", 100)
+        self._save_optimizer_state = cfg.get("save_optimizer_state", False)
 
     def load_checkpoint(self, cfg_checkpointer: DictConfig) -> Dict[str, Any]:
         """
@@ -641,6 +643,7 @@ class LoRAFinetuneRecipeDistributed(FTRecipeInterface):
     def save_checkpoint(
         self,
         epoch: int,
+        save_optimizer_state: bool = False,
     ) -> None:
         """
         Checkpoint the state of the recipe. The constructed checkpoint state dict
@@ -657,7 +660,7 @@ class LoRAFinetuneRecipeDistributed(FTRecipeInterface):
         # final dict passed onto the checkpointer
         checkpoint_dict = {}
 
-        intermediate_checkpoint = epoch + 1 < self.total_epochs
+        intermediate_checkpoint = epoch + 1 < self.total_epochs and save_optimizer_state
         # To prevent GPU memory from spiking during checkpoint save,
         # we consolidate the full model and optim state dicts on CPU for rank 0
         cpu_state_dict = training.get_full_model_state_dict(
@@ -818,7 +821,7 @@ class LoRAFinetuneRecipeDistributed(FTRecipeInterface):
                     loss_to_log = running_loss.item()
                     pbar.update(1)
                     pbar.set_description(
-                        f"{curr_epoch + 1}|{self.global_step}|Loss: {loss_to_log}"
+                        f"Epoch {curr_epoch+1}|Step {self.global_step}|Loss: {loss_to_log:.3e}"
                     )
 
                     # Log per-step metrics
@@ -865,8 +868,11 @@ class LoRAFinetuneRecipeDistributed(FTRecipeInterface):
                     # will include multiple forward / backward passes if gradient accumulation > 1
                     self._profiler.step()
 
+                    if self.global_step and self.global_step % self._save_every_n_steps == 0:
+                        self.save_checkpoint(epoch=curr_epoch, save_optimizer_state=False)
+
             self.epochs_run += 1
-            self.save_checkpoint(epoch=curr_epoch)
+            self.save_checkpoint(epoch=curr_epoch, save_optimizer_state=True)
 
         self._profiler.stop()
 

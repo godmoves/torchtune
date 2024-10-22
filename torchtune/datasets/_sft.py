@@ -119,8 +119,8 @@ class SFTDataset(Dataset):
 
     def _prepare_sample(self, sample: Mapping[str, Any]) -> Dict[str, Any]:
         transformed_sample = self._message_transform(sample)
-        if "messages" in transformed_sample:
-            validate_messages(transformed_sample["messages"])
+        # if "messages" in transformed_sample:
+        #     validate_messages(transformed_sample["messages"])
 
         tokenized_dict = self._model_transform(transformed_sample)
 

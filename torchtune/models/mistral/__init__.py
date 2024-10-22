@@ -12,10 +12,13 @@ from ._component_builders import (
 )
 from ._model_builders import (
     lora_mistral_7b,
+    lora_mistral_nemo_12b,
     lora_mistral_reward_7b,
     mistral_7b,
+    mistral_nemo_12b,
     mistral_reward_7b,
     mistral_tokenizer,
+    mistral_hf_tokenizer,
     qlora_mistral_7b,
     qlora_mistral_reward_7b,
 )
@@ -26,14 +29,17 @@ __all__ = [
     "MistralTokenizer",
     "MistralChatTemplate",
     "lora_mistral",
+    "lora_mistral_nemo_12b",
     "lora_mistral_classifier",
     "mistral",
     "mistral_classifier",
     "lora_mistral_7b",
     "lora_mistral_reward_7b",
     "mistral_7b",
+    "mistral_nemo_12b",
     "mistral_reward_7b",
     "mistral_tokenizer",
+    "mistral_hf_tokenizer",
     "qlora_mistral_7b",
     "qlora_mistral_reward_7b",
 ]

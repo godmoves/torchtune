@@ -138,6 +138,8 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         self.max_steps_per_epoch = cfg.max_steps_per_epoch
         self.global_step = 0
         self._clip_grad_norm = cfg.get("clip_grad_norm", None)
+        self.save_every_n_steps = cfg.get("save_every_n_steps", 100)
+        self.save_optimizer_state = cfg.get("save_optimizer_state", False)
 
     def load_checkpoint(self, cfg_checkpointer: DictConfig) -> Dict[str, Any]:
         """
@@ -526,6 +528,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
     def save_checkpoint(
         self,
         epoch: int,
+        save_optimizer_state: bool = False,
     ) -> None:
         """
         Checkpoint the state of the recipe. The constructed checkpoint state dict
@@ -540,7 +543,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
         # final dict passed onto the checkpointer
         checkpoint_dict = {}
 
-        intermediate_checkpoint = epoch + 1 < self.total_epochs
+        intermediate_checkpoint = epoch + 1 < self.total_epochs and save_optimizer_state
         # To prevent GPU memory from spiking during checkpoint save,
         # we consolidate the full model and optim state dicts on CPU for rank 0
         cpu_state_dict = training.get_full_model_state_dict(
@@ -670,7 +673,7 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                     loss_to_log = running_loss.item()
                     pbar.update(1)
                     pbar.set_description(
-                        f"{curr_epoch + 1}|{self.global_step}|Loss: {loss_to_log}"
+                        f"Epoch {curr_epoch+1}|Step {self.global_step}|Loss: {loss_to_log:.3e}"
                     )
 
                     # Log per-step metrics
@@ -717,8 +720,12 @@ class FullFinetuneRecipeDistributed(FTRecipeInterface):
                     # will include multiple forward / backward passes if gradient accumulation > 1
                     self._profiler.step()
 
+                # Save checkpoint if save_every_n_steps is set
+                if self.global_step and self.global_step % self.save_every_n_steps == 0:
+                    self.save_checkpoint(epoch=curr_epoch, save_optimizer_state=self.save_optimizer_state)
+
             self.epochs_run += 1
-            self.save_checkpoint(epoch=curr_epoch)
+            self.save_checkpoint(epoch=curr_epoch, save_optimizer_state=True)
 
         self._profiler.stop()
 

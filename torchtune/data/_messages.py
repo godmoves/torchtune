@@ -581,6 +581,101 @@ class OpenAIToMessages(Transform):
         return {"messages": updated_messages}
 
 
+class HaiGPTToMessages(Transform):
+    """
+    Convert HaiGPT message JSON structure to torchtune's :class:`~torchtune.data.Message` structure.
+
+    A single sample typically consists of a single optional system prompt and one or multiple
+    turns of user and assistant messages.
+
+    For example::
+
+        {
+            "dialogue": [
+                {
+                    "role": <system|user|assistant>,
+                    "content": "How are you doing today?",
+                    "masked": false,
+                },
+                ...
+            ]
+        }
+
+    :class:`~torchtune.data.Message` follows::
+
+        [
+            {
+                "role": <system|user|assistant>,
+                "content": "How are you doing today?",
+                "masked": false,
+            },
+            ...
+        ]
+
+    Args:
+        train_on_input (bool): whether the prompt should remain unmasked. Default: False
+        column_map (Optional[Dict[str, str]]): a mapping from the expected columns ("messages")
+            to the new column names in the dataset. Key should be "messages" and value should be
+            the new column name. If None, keep the default "messages".
+            Default is None.
+        new_system_prompt (Optional[str]): if specified, prepend a system message. This can
+            serve as instructions to guide the model response. Setting this will OVERRIDE any system
+            messages already present in the dataset. Default is None.
+
+    Raises:
+        ValueError: If ``column_map`` is provided and ``messages`` not in ``column_map``.
+    """
+
+    def __init__(
+        self,
+        train_on_input: bool = False,
+        column_map: Optional[Dict[str, str]] = None,
+        new_system_prompt: Optional[str] = None,
+    ):
+        self.train_on_input = train_on_input
+        self.new_system_prompt = new_system_prompt
+        if column_map:
+            if "dialogue" not in column_map:
+                raise ValueError(
+                    f"Expected a key of 'dialogue' in column_map but found {column_map.keys()}."
+                )
+            self._column_map = column_map
+        else:
+            self._column_map = {"dialogue": "dialogue"}
+
+    def __call__(self, sample: Mapping[str, Any]) -> Mapping[str, Any]:
+        """
+        Return a list of Message objects from the provided sample dict.
+
+        Args:
+            sample (Mapping[str, Any]): a single data sample with "messages" field pointing
+                to a list of dict messages.
+
+        Returns:
+            List[Message]: A list of messages with "role" and "content" fields.
+        """
+        updated_messages = []
+        if self.new_system_prompt is not None:
+            updated_messages.append(
+                Message(
+                    role="system", content=self.new_system_prompt, masked=True, eot=True
+                )
+            )
+        for message in sample[self._column_map["dialogue"]]:
+            if message["role"] == "system" and self.new_system_prompt is not None:
+                continue
+            role = "user" if message["role"] == "user" else "assistant"
+            updated_messages.append(
+                Message(
+                    role=role,
+                    content=message["content"],
+                    masked=message["masked"],
+                ),
+            )
+
+        return {"messages": updated_messages}
+
+
 def validate_messages(
     messages: List[Message],
 ) -> None:
