@@ -115,7 +115,14 @@ class SFTDataset(Dataset):
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         sample = self._data[index]
-        return self._prepare_sample(sample)
+        tokenized_sample = self._prepare_sample(sample)
+        # TODO(pwj): Truncate from left-side to max_seq_len if specified
+        max_seq_len = self._model_transform.max_seq_len
+        if max_seq_len is not None and len(tokenized_sample["tokens"]) >= max_seq_len:
+            tokenized_sample["tokens"] = tokenized_sample["tokens"][-max_seq_len + 1:]
+            tokenized_sample["mask"] = tokenized_sample["mask"][-max_seq_len + 1:]
+            tokenized_sample["labels"] = tokenized_sample["labels"][-max_seq_len + 1:]
+        return tokenized_sample
 
     def _prepare_sample(self, sample: Mapping[str, Any]) -> Dict[str, Any]:
         transformed_sample = self._message_transform(sample)

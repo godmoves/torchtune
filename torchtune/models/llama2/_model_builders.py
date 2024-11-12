@@ -9,7 +9,7 @@ from functools import partial
 from torchtune.models.llama2._component_builders import llama2, lora_llama2, llama2_classifier, lora_llama2_classifier
 
 from torchtune.modules import TransformerDecoder
-from torchtune.models.llama2._tokenizer import Llama2Tokenizer
+from torchtune.models.llama2._tokenizer import Llama2Tokenizer, Llama2HFTokenizer
 from torchtune.modules.peft import LORA_ATTN_MODULES
 from torchtune.data._prompt_templates import _TemplateType
 from torchtune.data._prompt_templates import _get_prompt_template
@@ -59,6 +59,25 @@ def llama2_tokenizer(path: str, max_seq_len: Optional[int] = None, prompt_templa
         Llama2Tokenizer: Instantiation of the Llama2 tokenizer
     """
     return Llama2Tokenizer(path=path, max_seq_len=max_seq_len, prompt_template=_get_prompt_template(prompt_template) if prompt_template is not None else None)
+
+
+def llama2_hf_tokenizer(path: str, max_seq_len: Optional[int] = None, prompt_template: Optional[_TemplateType] = None)-> Llama2HFTokenizer:
+    """
+    HF Tokenizer for Llama2.
+
+    Args:
+        path (str): path to the tokenizer
+        max_seq_len (Optional[int]): maximum sequence length for tokenizing a single list of messages,
+            after which the input will be truncated. Default is None.
+        prompt_template (Optional[_TemplateType]): optional specified prompt template.
+            If a string, it is assumed to be the dotpath of a :class:`~torchtune.data.PromptTemplateInterface`
+            class. If a dictionary, it is assumed to be a custom prompt template mapping role to the
+            prepend/append tags. Default is :class:`~torchtune.models.llama2.Llama2ChatTemplate`.
+
+    Returns:
+        Llama2HFTokenizer: Instantiation of the Llama2 HuggingFace tokenizer
+    """
+    return Llama2HFTokenizer(path=path, max_seq_len=max_seq_len, prompt_template=_get_prompt_template(prompt_template) if prompt_template is not None else None)
 
 
 def lora_llama2_7b(
@@ -143,6 +162,28 @@ def llama2_13b() -> TransformerDecoder:
         max_seq_len=4096,
         attn_dropout=0.0,
         norm_eps=1e-5,
+    )
+
+
+def llama2_13b_8k() -> TransformerDecoder:
+    """
+    Builder for creating a Llama2 model initialized w/ the default 13B parameter values
+    from https://arxiv.org/abs/2307.09288
+
+    Returns:
+        TransformerDecoder: Instantiation of Llama2 13B model
+    """
+    return llama2(
+        vocab_size=32_000,
+        num_layers=40,
+        num_heads=40,
+        num_kv_heads=40,
+        embed_dim=5120,
+        intermediate_dim=13824,
+        max_seq_len=8192,
+        attn_dropout=0.0,
+        norm_eps=1e-5,
+        rope_base=20_000,
     )
 
 

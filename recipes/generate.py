@@ -184,20 +184,26 @@ class InferenceRecipe:
             self._model.reset_caches()
 
         t0 = time.perf_counter()
-        generated_tokens, _ = generation.generate(
-            model=self._model,
-            prompt=prompt,
-            max_generated_tokens=cfg.max_new_tokens,
-            pad_id=self._tokenizer.pad_id,
-            temperature=cfg.temperature,
-            top_k=cfg.top_k,
-            stop_tokens=self._tokenizer.stop_tokens,
-            custom_generate_next_token=custom_generate_next_token,
-        )
-        generated_tokens = generated_tokens.tolist()
-        t = time.perf_counter() - t0
+        tokens_generated = []
+        for _ in range(cfg.num_runs):
+            generated_tokens, _ = generation.generate(
+                model=self._model,
+                prompt=prompt,
+                max_generated_tokens=cfg.max_new_tokens,
+                pad_id=self._tokenizer.pad_id,
+                temperature=cfg.temperature,
+                top_k=cfg.top_k,
+                stop_tokens=self._tokenizer.stop_tokens,
+                custom_generate_next_token=custom_generate_next_token,
+            )
 
-        logger.info(self._tokenizer.decode(generated_tokens[0]))
+            generated_tokens = generated_tokens.tolist()
+            new_generated_tokens = generated_tokens[0][prompt.size(0):]
+            tokens_generated.append(len(new_generated_tokens))
+            decoded_content = self._tokenizer.decode(new_generated_tokens)
+            logger.info(f"Generate {len(decoded_content.split(' '))} words, content: {decoded_content}")
+            self._model.reset_caches()
+        t = time.perf_counter() - t0
 
         model_size = sum(
             [
@@ -208,8 +214,7 @@ class InferenceRecipe:
             ]
         )
 
-        tokens_generated = len(generated_tokens[0]) - prompt.size(0)
-        tokens_sec = tokens_generated / t
+        tokens_sec = sum(tokens_generated) / (t * cfg.num_runs)
         logger.info(
             f"Time for inference: {t:.02f} sec total, {tokens_sec:.02f} tokens/sec"
         )

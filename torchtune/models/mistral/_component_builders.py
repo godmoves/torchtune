@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import List
+from typing import List, Optional
 
 from torch import nn
 
@@ -46,6 +46,7 @@ def mistral(
     norm_eps: float = 1e-5,
     rope_base: int = 10_000,
     head_dim: int = None,
+    output_hidden_states: Optional[List[int]] = None,
 ) -> TransformerDecoder:
     """
     Build the decoder associated with the mistral model. This includes:
@@ -73,6 +74,7 @@ def mistral(
         norm_eps (float): epsilon in RMS norms
         rope_base (int): base for the rotary positional embeddings. Default: 10_000
         head_dim (int): head dimension for multi-head attention. Default: None
+        output_hidden_states (Optional[List[int]]): list of indices of layers to output hidden states for.
 
     Returns:
         TransformerDecoder: Instantiation of mistral model.
@@ -115,6 +117,7 @@ def mistral(
         head_dim=head_dim,
         norm=RMSNorm(embed_dim, eps=norm_eps),
         output=output_proj,
+        output_hidden_states=output_hidden_states,
     )
 
 

@@ -258,24 +258,9 @@ class MistralHFTokenizer(ModelTokenizer, Transform):
 
         self.prompt_template = prompt_template
 
-        # Regex for removing special tokens from the decoded string
-        self._special_token_regex = re.compile(r"<\|.*?\|>")
-        self._special_token_header_regex = re.compile(
-            r"<\|start_header_id\|>.*?<\|end_header_id\|>\n\n"
-        )
-
     @property
     def vocab_size(self):
         return self._hf_model.vocab_size
-
-    def _remove_special_tokens(self, text: str) -> str:
-        """
-        Remove special tokens from the decoded string.
-        """
-        # First remove the headers, then the remaining special tokens
-        return self._special_token_regex.sub(
-            "", self._special_token_header_regex.sub("", text)
-        )
 
     def encode(
         self,
@@ -310,27 +295,17 @@ class MistralHFTokenizer(ModelTokenizer, Transform):
     def decode(
         self,
         token_ids: List[int],
-        skip_special_tokens: bool = True,
     ) -> str:
         """Decode token IDs to strings.
 
         Args:
             token_ids (List[int]): The input token IDs to be decoded.
-            skip_special_tokens (bool): Whether to remove special tokens from the decoded string.
 
         Returns:
             str: The decoded text.
         """
-        # We will remove special tokens manually via regex on the decoded string.
-        # This is because removing all special tokens does not remove the role and
-        # whitespace added from the special tokens, i.e., the "user" and "\n\n" in
-        # "<|start_header_id|>user<|end_header_id|>\n\n"
-        decoded_string = self._hf_model.decode(token_ids=token_ids)
-        return (
-            self._remove_special_tokens(decoded_string)
-            if skip_special_tokens
-            else decoded_string
-        )
+        return self._hf_model.decode(token_ids=token_ids)
+
 
     def _tokenize_header(self, message: Message) -> List[int]:
         """
@@ -484,7 +459,7 @@ class MistralHFTokenizer(ModelTokenizer, Transform):
         
 if __name__ == "__main__":
     tokenizer = MistralHFTokenizer("/cephfs/SHARE/project/huggingface.co/hub/models--mistralai--Mistral-Nemo-Base-2407/snapshots/d613c787305d2300f41ad94abaec338411fbbecf")
-    tokenized_text = tokenizer.encode("[INST]user[/INST]\n\nHow are you?</s>", add_bos=True, add_eos=False)
+    tokenized_text = tokenizer.encode("[INST]user[/INST]\n\nHow are you?</s>[INST]assistant[/INST]\n\n", add_bos=True, add_eos=False)
     print(tokenized_text)
 
     message = Message(role="user", content="How are you?", masked=True)
@@ -505,4 +480,6 @@ if __name__ == "__main__":
     ]
     tokenized_messages = tokenizer.tokenize_messages(messages)
     print(tokenized_messages)
+    decoded_text = tokenizer.decode(tokenized_messages[0])
+    print(decoded_text)
     

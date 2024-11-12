@@ -68,6 +68,35 @@ def mistral_nemo_12b() -> TransformerDecoder:
         max_seq_len=1024000,
         attn_dropout=0.0,
         norm_eps=1e-5,
+        rope_base=1_000_000,
+        # Output hidden states for debug purpose
+        # output_hidden_states=[0, 1, 2],
+    )
+
+
+def mistral_8b() -> TransformerDecoder:
+    """
+    Builder for creating a Ministral 8B model initialized w/ the default 8b parameter values
+    from https://huggingface.co/mistralai/Ministral-8B-Instruct-2410
+
+
+    Returns:
+        TransformerDecoder: Instantiation of Ministral 8B model
+    """
+    return mistral(
+        vocab_size=131072,
+        num_layers=36,
+        num_heads=32,
+        head_dim=128,
+        num_kv_heads=8,
+        embed_dim=4096,
+        intermediate_dim=12288,
+        max_seq_len=32768,
+        attn_dropout=0.0,
+        norm_eps=1e-5,
+        rope_base=100_000_000,
+        # Output hidden states for debug purpose
+        # output_hidden_states=[0, 1, 2],
     )
 
 
@@ -89,7 +118,7 @@ def mistral_tokenizer(path: str, max_seq_len: Optional[int] = None, prompt_templ
     """
     return MistralTokenizer(path=path, max_seq_len=max_seq_len, prompt_template=_get_prompt_template(prompt_template) if prompt_template is not None else None)
 
-    
+
 def mistral_hf_tokenizer(path: str, max_seq_len: Optional[int] = None, prompt_template: Optional[_TemplateType] = None) -> MistralTokenizer:
     """
     Tokenizer for Mistral models.
@@ -310,3 +339,44 @@ Builder for creating a Mistral reward 7B model with QLoRA enabled. Base model we
 that LoRA is applied to are quantized per the QLoRA paper: https://arxiv.org/abs/2305.14314.
 Please see `lora_mistral_reward_7b` for full API arguments.
 """
+
+if __name__ == "__main__":
+    import torch
+    from torchtune.training.checkpointing import FullModelHFCheckpointer
+    checkpoint_dir = "/cephfs/GPT/usr/pangwenjie/her/haigpt/idea_tune/torchtune/recipes/output/mistral_nemo_12b_ugc_char_sft_low_mem_1025/hf2"
+    checkpoint_files = [
+        "model-00001-of-00005.safetensors",
+        "model-00002-of-00005.safetensors",
+        "model-00003-of-00005.safetensors",
+        "model-00004-of-00005.safetensors",
+        "model-00005-of-00005.safetensors",
+    ]
+    print("Load checkpoint...")
+    checkpoint = FullModelHFCheckpointer(
+        checkpoint_dir=checkpoint_dir,
+        checkpoint_files=checkpoint_files,
+        model_type="MISTRAL",
+        output_dir="./test")
+    checkpoint_dict = checkpoint.load_checkpoint()
+
+    model = mistral_nemo_12b()
+    for name, param in model.named_parameters():
+        # print(name, param.shape)
+        if name not in checkpoint_dict["model"]:
+            print("Param: {name} shape: {param.shape} not in checkpoint")
+    model.load_state_dict(checkpoint_dict["model"])
+    model.to(torch.bfloat16)
+    model = torch.nn.DataParallel(model)
+    model.to("cuda")
+    dtypes = set(param.dtype for param in model.parameters())
+    print("Load checkpoint done. Model dtype", model.dtype, dtypes)
+
+    input_tokens = torch.tensor([[1, 3, 3263, 4, 1267, 7801, 1584, 1636, 1063, 2, 3, 1503, 19464, 4, 1267]])
+    output = model(input_tokens)
+    if isinstance(output, list):
+        hidden = output[:-1]
+        torch.save(hidden, "./test/hidden.pt")
+        print("Hidden size", [h.shape for h in hidden])
+        output = output[-1]
+    print("Output size", output.shape)
+    torch.save(output, "./test/output.pt")

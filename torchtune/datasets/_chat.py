@@ -194,10 +194,12 @@ def chat_dataset(
 
     
 if __name__ == "__main__":
+    import numpy as np
+    from tqdm import tqdm
     from torchtune.models.mistral import mistral_hf_tokenizer
 
     mistral_path = "/cephfs/SHARE/project/huggingface.co/hub/models--mistralai--Mistral-Nemo-Base-2407/snapshots/d613c787305d2300f41ad94abaec338411fbbecf"
-    tokenizer = mistral_hf_tokenizer(mistral_path)
+    tokenizer = mistral_hf_tokenizer(mistral_path, max_seq_len=8192)
 
     dataset = chat_dataset(
         tokenizer=tokenizer,
@@ -207,7 +209,8 @@ if __name__ == "__main__":
         train_on_input=False,
         packed=False,
         split="train",
-        data_files="/cephfs/GPT/usr/pangwenjie/her/haigpt/idea/data/ugc_model_dataset_0619.jsonl",
+        # data_files="/cephfs/GPT/usr/pangwenjie/her/haigpt/short_test.jsonl"
+        data_files="/cephfs/GPT/usr/xuanshuzhe/code/data_process/chai_preference_data/processed_data/sft/v1/chai_preference_sft_train_data_llama3_v1.jsonl"
     )
 
     print(f"Total number of samples: {len(dataset)}")
@@ -215,13 +218,22 @@ if __name__ == "__main__":
     for k, v in dataset[0].items():
         print(f"{k} {len(v)}: {v}")
 
+    print(f"Number of tokens not equal to -100: {np.sum(np.array(dataset[0]['labels']) != -100)}")
+
+    print("=" * 80)
+    print("Decoded content:")
     print(tokenizer.decode(dataset[0]["tokens"]))
 
-
     # Calculate the avg number of tokens in the dataset "tokens" field
+    print("=" * 80)
     total_tokens = []
-    for i in range(5000):
-        total_tokens.append(len(dataset[i]["tokens"]))
+    threshold = 4096
+    for i, d in enumerate(dataset):
+        if i > 10000:
+            break
+        total_tokens.append(len(d["tokens"]))
     avg_tokens = sum(total_tokens) / len(total_tokens)
+    print(f"Total data samples: {len(total_tokens)}")
     print(f"Average number of tokens in the dataset: {avg_tokens}")
     print(f"Top 10 max tokens in the dataset: {sorted(total_tokens, reverse=True)[:10]}")
+    print(f"Ratio of tokens less than {threshold}: {sum(np.array(total_tokens) < threshold) / len(total_tokens)}")
