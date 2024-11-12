@@ -1,4 +1,4 @@
-# Config for single device full finetuning in full_finetune_single_device.py
+# Config for multi-device full finetuning in full_finetune_distributed.py
 # using a Llama2 13B model
 
 
