@@ -1,0 +1,80 @@
+# Config for single device full finetuning in full_finetune_single_device.py
+# using a Llama2 13B model
+
+
+# Tokenizer
+tokenizer:
+  _component_: torchtune.models.llama2.llama2_hf_tokenizer
+  path: /cephfs/GPT/project/huggingface.co/Llama2_hf/13B/
+  max_seq_len: 8192
+
+# Dataset
+dataset:
+  _component_: torchtune.datasets.chat_dataset
+  source: json
+  data_files: [
+    /cephfs/GPT/usr/xuanshuzhe/code/data_process/chai_preference_data/processed_data/sft/v1/chai_preference_sft_train_data_llama3_v1.jsonl,
+    /cephfs/GPT/usr/xuanshuzhe/code/data_process/ugc/memory/v1/fix_memory_answer_v5_llama3.jsonl
+  ]
+  conversation_column: dialogue
+  conversation_style: haigpt
+  train_on_input: False
+  packed: true
+  split: train
+seed: null
+shuffle: True
+
+# Model Arguments
+model:
+  _component_: torchtune.models.llama2.llama2_13b_8k
+
+output_dir: ./output/llama2_13b_ugc_char_chai_sft
+checkpointer:
+  _component_: torchtune.training.FullModelHFCheckpointer
+  # checkpoint_dir: /cephfs/SHARE/project/experiments/hergpt/exp-94953cd0/trained_models/llama2-wizard13b/checkpoint-1074
+  checkpoint_dir: /cephfs/GPT/project/huggingface.co/Llama2_hf/13B
+  checkpoint_files: [
+    pytorch_model-00001-of-00003.bin,
+    pytorch_model-00002-of-00003.bin,
+    pytorch_model-00003-of-00003.bin
+  ]
+  recipe_checkpoint: null
+  output_dir: ${output_dir}
+  model_type: LLAMA2
+resume_from_checkpoint: False
+
+# Fine-tuning arguments
+batch_size: 1
+epochs: 3
+optimizer:
+  # _component_: bitsandbytes.optim.PagedAdamW
+  _component_: torch.optim.AdamW
+  lr: 2e-5
+loss:
+  _component_: torchtune.modules.loss.CEWithChunkedOutputLoss
+max_steps_per_epoch: null
+# optimizer_in_bwd: True
+gradient_accumulation_steps: 8
+save_every_n_steps: 40
+save_optimizer_state: False
+
+# Training env
+device: cuda
+
+# Memory management
+enable_activation_checkpointing: True
+fsdp_cpu_offload: True
+memory_efficient_fsdp_wrap: True
+
+# Reduced precision
+dtype: bf16
+
+# Model compilation
+compile: False
+
+# Logging
+metric_logger:
+  _component_: torchtune.training.metric_logging.TensorBoardLogger
+  log_dir: ${output_dir}
+log_every_n_steps: 1
+log_peak_memory_stats: False
