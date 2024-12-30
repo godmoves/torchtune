@@ -57,7 +57,7 @@ class Message:
 
     def __init__(
         self,
-        role: Role,
+        role: Union[Role, str],
         content: Union[str, List[Dict[str, Any]]],
         masked: bool = False,
         ipython: bool = False,
@@ -664,10 +664,9 @@ class HaiGPTToMessages(Transform):
         for message in sample[self._column_map["dialogue"]]:
             if message["role"] == "system" and self.new_system_prompt is not None:
                 continue
-            role = "user" if message["role"] == "user" else "assistant"
             updated_messages.append(
                 Message(
-                    role=role,
+                    role=message["role"],
                     content=message["content"],
                     masked=message["masked"],
                 ),
